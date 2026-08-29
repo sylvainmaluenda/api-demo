@@ -1,0 +1,31 @@
+### route 404
+GET http://localhost:3000/test
+
+### findAll
+GET http://localhost:3000/orders
+
+### findUnique
+GET http://localhost:3000/orders/500
+
+### create
+POST http://localhost:3000/orders
+Content-Type: application/json
+
+{
+    "userId": 74,
+    "products": [
+        { "productId": 50, "price": 1016, "quantity": 1 },
+        { "productId": 59, "price": 734, "quantity": 5 }
+    ]
+}
+
+### patch status
+PATCH http://localhost:3000/orders/1/status
+Content-Type: application/json
+
+{
+    "status" : "cancelled"
+}
+
+### sendReminders
+GET http://localhost:3000/orders/pending/send-reminders
