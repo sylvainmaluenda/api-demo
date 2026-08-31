@@ -51,10 +51,18 @@ const orderService = {
     }
 
     const controller = new AbortController();
+    const startTime = new Date();
 
-    // orderBatchService : manage error 413 : Payoad Too Large
-    return await orderBatchService.processOrders(
+    // orderBatchService : manage error 413 : Payoad Too Large & server timeout
+    const rawResults = await orderBatchService.processOrders(
       ordersPending,
+      controller.signal,
+    );
+
+    return orderBatchService.getReport(
+      ordersPending.length,
+      rawResults,
+      startTime,
       controller.signal,
     );
   },

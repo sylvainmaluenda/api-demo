@@ -1,4 +1,5 @@
 import AbortError from "../errors/AbortError.js";
+import AppError from "../errors/AppError.js";
 
 const orderBatchService = {
   config: {
@@ -61,6 +62,8 @@ const orderBatchService = {
   },
 
   async processOrders(orders, signal) {
+    console.log("Process started...");
+
     const ordersMap = new Map(orders.map((order) => [order.id, order]));
     // ordersMap used to avoid O(n²) complexity
     // in building the failed orders array to retry
@@ -77,6 +80,8 @@ const orderBatchService = {
 
     // Retry process management
     for (let i = 1; i <= maxAttempts; i++) {
+      console.log(`Attempt #${i} :`);
+
       retryCount = i - 1;
 
       // Backoff linear strategy
@@ -87,8 +92,12 @@ const orderBatchService = {
       }
 
       // Batch process
+      let batchIndex = 0;
+
       for (let i = 0; i < ordersToRetry.length; i += batchSize) {
         const batch = ordersToRetry.slice(i, i + batchSize);
+
+        console.log(`Start batch[${batchIndex++}] treatment...`);
 
         const batchResults = await Promise.all(
           batch.map((order) => this.processOrder(order, signal)),
@@ -129,11 +138,50 @@ const orderBatchService = {
         }),
       },
     );
+    const data = await response.json();
 
-    if (response.ok) {
-      const data = response.json();
-      return data;
+    if (!response.ok) {
+      throw new AppError(data.error, response.status);
     }
+
+    return data;
+  },
+
+  getReport(ordersSize, rawResults, startTime, signal) {
+    let succeedSize = 0;
+    let failedSize = 0;
+    let abortedSize = 0;
+
+    for (const result of rawResults.results) {
+      if (result.success) {
+        succeedSize++;
+      }
+
+      if (result.error) {
+        failedSize++;
+      }
+    }
+
+    if (succeedSize + failedSize + abortedSize !== ordersSize) {
+      throw new Error("Report error");
+    }
+
+    const report = {
+      status: signal.aborted ? "aborted" : "completed",
+      retryCount: rawResults.retryCount,
+
+      sent: ordersSize,
+
+      succeed: succeedSize,
+      failed: failedSize,
+      aborted: abortedSize,
+
+      duration: new Date() - startTime,
+
+      results: rawResults.results,
+    };
+
+    return report;
   },
 };
 

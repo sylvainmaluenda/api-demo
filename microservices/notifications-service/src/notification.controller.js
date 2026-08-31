@@ -1,4 +1,4 @@
-import notificationService from "./notification.sevice.js";
+import notificationService from "./notification.service.js";
 import AppError from "./errors/AppError.js";
 
 const notificationController = {
@@ -11,7 +11,7 @@ const notificationController = {
     }
 
     if (typeof order !== "object") {
-      throw new AppError("order must be an object", 400);
+      throw new AppError("Order must be an object", 400);
     }
 
     const isUnauthorizedProp = Object.keys(req.body).some(

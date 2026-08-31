@@ -13,25 +13,29 @@ const notificationService = {
       mailLatencyMs: { min: minApiLatency, max: maxApiLatency },
     } = this.config;
 
-    if (Math.random() < mailFailureProbability) {
+    try {
+      if (Math.random() < mailFailureProbability) {
+        throw new Error(`Failed to process order ${order.id}`);
+      }
+
+      const simulatedLatencyMs = Math.floor(
+        Math.random() * (maxApiLatency - minApiLatency + 1) + minApiLatency,
+      );
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, simulatedLatencyMs);
+      });
+
       return {
         orderId: order.id,
-        error: new Error(`Failed to process order ${order.id}`),
+        success: true,
+      };
+    } catch (error) {
+      return {
+        orderId: order.id,
+        error: error.message,
       };
     }
-
-    const simulatedLatencyMs = Math.floor(
-      Math.random() * (maxApiLatency - minApiLatency + 1) + minApiLatency,
-    );
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, simulatedLatencyMs);
-    });
-
-    return {
-      orderId: order.id,
-      success: true,
-    };
   },
 };
 

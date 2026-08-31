@@ -77,7 +77,7 @@ const orderController = {
 
   async sendReminders(_req, res) {
     const datas = await orderService.sendReminders();
-    res.status(200).send(datas);
+    res.status(200).json(datas);
   },
 };
 
