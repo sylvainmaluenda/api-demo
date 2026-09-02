@@ -3,7 +3,6 @@ import AppError from "../errors/AppError.js";
 
 const orderBatchService = {
   config: {
-    abortTimeoutMs: 1000,
     batchSize: 100,
 
     maxAttempts: 3,
@@ -11,54 +10,6 @@ const orderBatchService = {
       strategy: "linear",
       incrementMs: 200,
     },
-
-    apiFailureProbability: 0.1,
-    apiLatencyMs: {
-      min: 10,
-      max: 100,
-    },
-  },
-
-  getDurationEstimated(ordersQuantity = 1_000_000) {
-    const {
-      batchSize,
-      maxAttempts,
-      backoff: { incrementMs },
-      apiFailureProbability,
-      apiLatencyMs: { min: minApiLatency, max: maxApiLatency },
-    } = this.config;
-
-    let msEstimated = 0;
-    const averageApiLatency = (maxApiLatency + minApiLatency) / 2;
-
-    for (let i = 0; i < maxAttempts; i++) {
-      if (i === 0) {
-        msEstimated = (ordersQuantity / batchSize) * averageApiLatency;
-      }
-      msEstimated += apiFailureProbability * msEstimated + i * incrementMs;
-    }
-
-    return Number(msEstimated.toFixed());
-  },
-
-  formatDuration(ms) {
-    if (ms < 1000) {
-      return `${ms} ms`;
-    }
-
-    const hours = Math.floor(ms / 3_600_000);
-    const minutes = Math.floor((ms % 3_600_000) / 60_000);
-    const seconds = Math.floor((ms % 60_000) / 1_000);
-
-    if (hours === 0 && minutes === 0) {
-      return `${seconds} sec`;
-    }
-
-    if (hours === 0) {
-      return `${minutes} min ${seconds} sec`;
-    }
-
-    return `${hours} h ${minutes} min ${seconds} sec`;
   },
 
   async processOrders(orders, signal) {
@@ -95,12 +46,12 @@ const orderBatchService = {
       let batchIndex = 0;
 
       for (let i = 0; i < ordersToRetry.length; i += batchSize) {
-        const batch = ordersToRetry.slice(i, i + batchSize);
+        const orderBatch = ordersToRetry.slice(i, i + batchSize);
 
         console.log(`Start batch[${batchIndex++}] treatment...`);
 
         const batchResults = await Promise.all(
-          batch.map((order) => this.processOrder(order, signal)),
+          orderBatch.map((order) => this.processOrder(order, signal)),
         );
 
         batchResults.forEach((batchResult) =>
@@ -125,45 +76,67 @@ const orderBatchService = {
   },
 
   async processOrder(order, signal) {
-    const response = await fetch(
-      "http://localhost:3001/notifications/send-email",
-      {
-        signal: signal,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        "http://localhost:3001/notifications/send-email",
+        {
+          signal: signal,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            order,
+          }),
         },
-        body: JSON.stringify({
-          order,
-        }),
-      },
-    );
-    const data = await response.json();
+      );
 
-    if (!response.ok) {
-      throw new AppError(data.error, response.status);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new AppError(data.error, response.status);
+      }
+
+      return data;
+    } catch (error) {
+      if (error.name === "TimeoutError") {
+        return {
+          orderId: order.id,
+          error: new AbortError("The operation was aborted due to timeout"),
+        };
+      }
+      throw error;
     }
-
-    return data;
   },
 
   getReport(ordersSize, rawResults, startTime, signal) {
-    let succeedSize = 0;
-    let failedSize = 0;
-    let abortedSize = 0;
+    let succeedOrdersIds = [];
+    let failedOrdersIds = [];
+    let abortedOrdersIds = [];
 
     for (const result of rawResults.results) {
       if (result.success) {
-        succeedSize++;
+        succeedOrdersIds.push(result.orderId);
       }
 
       if (result.error) {
-        failedSize++;
+        if (result.error instanceof AbortError) {
+          abortedOrdersIds.push(result.orderId);
+        } else {
+          failedOrdersIds.push(result.orderId);
+        }
       }
     }
 
-    if (succeedSize + failedSize + abortedSize !== ordersSize) {
-      throw new Error("Report error");
+    if (
+      succeedOrdersIds.length +
+        failedOrdersIds.length +
+        abortedOrdersIds.length !==
+      ordersSize
+    ) {
+      throw new Error(
+        "Report error: sums of results are different from orders size",
+      );
     }
 
     const report = {
@@ -172,13 +145,17 @@ const orderBatchService = {
 
       sent: ordersSize,
 
-      succeed: succeedSize,
-      failed: failedSize,
-      aborted: abortedSize,
+      succeed: succeedOrdersIds.length,
+      failed: failedOrdersIds.length,
+      aborted: abortedOrdersIds.length,
 
       duration: new Date() - startTime,
 
-      results: rawResults.results,
+      results: {
+        succeedOrdersIds: succeedOrdersIds,
+        failedOrdersIds: failedOrdersIds,
+        abortedOrdersIds: abortedOrdersIds,
+      },
     };
 
     return report;

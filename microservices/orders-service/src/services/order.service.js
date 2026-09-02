@@ -50,20 +50,21 @@ const orderService = {
       throw new AppError("No order exists with a pending status", 404);
     }
 
-    const controller = new AbortController();
+    const signal = AbortSignal.timeout(10_000);
+
     const startTime = new Date();
 
     // orderBatchService : manage error 413 : Payoad Too Large & server timeout
     const rawResults = await orderBatchService.processOrders(
       ordersPending,
-      controller.signal,
+      signal,
     );
 
     return orderBatchService.getReport(
       ordersPending.length,
       rawResults,
       startTime,
-      controller.signal,
+      signal,
     );
   },
 };

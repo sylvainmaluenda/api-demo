@@ -2,7 +2,7 @@ const orders = [];
 
 const status = ["pending", "confirmed", "shipped", "cancelled"];
 
-const ordersLength = 10_000;
+const ordersLength = 100_000;
 
 /* Contract
   {
