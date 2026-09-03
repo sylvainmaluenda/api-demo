@@ -1,20 +1,14 @@
-const notificationService = {
-  config: {
-    mailFailureProbability: 0.1,
-    mailLatencyMs: {
-      min: 10,
-      max: 200,
-    },
-  },
+import config from "../config/notificationsService.config.js";
 
+const notificationService = {
   async fakeSendEmail(order) {
     const {
-      mailFailureProbability,
-      mailLatencyMs: { min: minApiLatency, max: maxApiLatency },
-    } = this.config;
+      apiFailureProbability,
+      apiLatencyMs: { min: minApiLatency, max: maxApiLatency },
+    } = config;
 
     try {
-      if (Math.random() < mailFailureProbability) {
+      if (Math.random() < apiFailureProbability) {
         throw new Error(`Failed to process order ${order.id}`);
       }
 

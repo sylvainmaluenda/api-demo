@@ -1,8 +1,10 @@
+import config from "../../config/ordersService.config.js";
+
 const orders = [];
 
 const status = ["pending", "confirmed", "shipped", "cancelled"];
 
-const ordersLength = 100_000;
+const ordersLength = config.orderSize;
 
 /* Contract
   {

@@ -1,17 +1,8 @@
+import config from "../../config/ordersService.config.js";
 import AbortError from "../errors/AbortError.js";
 import AppError from "../errors/AppError.js";
 
 const orderBatchService = {
-  config: {
-    batchSize: 100,
-
-    maxAttempts: 3,
-    backoff: {
-      strategy: "linear",
-      incrementMs: 200,
-    },
-  },
-
   async processOrders(orders, signal) {
     console.log("Process started...");
 
@@ -21,9 +12,14 @@ const orderBatchService = {
 
     const {
       batchSize,
+      maxConcurrency,
       maxAttempts,
       backoff: { incrementMs },
-    } = this.config;
+    } = config;
+
+    if (maxConcurrency >= batchSize) {
+      throw new AppError("batchSize must superior to maxConcurrency", 400);
+    }
 
     let results = new Map(); // Set ne permet pas le remplacemenet d'éléments
     let ordersToRetry = orders;
@@ -46,13 +42,23 @@ const orderBatchService = {
       let batchIndex = 0;
 
       for (let i = 0; i < ordersToRetry.length; i += batchSize) {
+        batchIndex++;
+
+        console.log(`Start batch[${batchIndex}] treatment...`);
+
         const orderBatch = ordersToRetry.slice(i, i + batchSize);
 
-        console.log(`Start batch[${batchIndex++}] treatment...`);
+        const batchResults = [];
 
-        const batchResults = await Promise.all(
-          orderBatch.map((order) => this.processOrder(order, signal)),
-        );
+        for (let j = 0; j < orderBatch.length; j += maxConcurrency) {
+          const concurrencyOrders = orderBatch.slice(j, j + maxConcurrency);
+
+          const results = await Promise.all(
+            concurrencyOrders.map((order) => this.processOrder(order, signal)),
+          );
+
+          batchResults.push(...results);
+        }
 
         batchResults.forEach((batchResult) =>
           results.set(batchResult.orderId, batchResult),

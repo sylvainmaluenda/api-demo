@@ -1,3 +1,4 @@
+import config from "../../config/ordersService.config.js";
 import orderRepository from "../repositories/order.repository.js";
 import orderBatchService from "./orderBatch.service.js";
 import AppError from "../errors/AppError.js";
@@ -50,7 +51,7 @@ const orderService = {
       throw new AppError("No order exists with a pending status", 404);
     }
 
-    const signal = AbortSignal.timeout(10_000);
+    const signal = AbortSignal.timeout(config.abortTimeOutMs);
 
     const startTime = new Date();
 

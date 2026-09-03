@@ -1,6 +1,6 @@
 # Orders Batch Processing — Node.js Microservices
 
-> Mini-projet **Node.js orienté backend / architecture distribuée**, conçu autour d'un problème concret : traiter un grand volume de commandes de manière contrôlée, résiliente et observable, tout en déclenchant un traitement asynchrone côté notifications.
+> Mini-projet **Node.js orienté backend / architecture distribuée**, conçu autour d'un problème concret : traiter la relance des clients d'un grand volume de commandes ayant un status "en attente de paiement" de manière contrôlée, résiliente et observable, tout en déclenchant un traitement asynchrone côté notifications.
 
 ## 🎯 Pourquoi ce projet ?
 
@@ -22,18 +22,6 @@ L'objectif n'était donc pas simplement de construire une API CRUD, mais de trav
 ## 🏗️ Architecture
 
 Le projet est volontairement composé de deux microservices :
-
-┌──────────────────┐ ┌──────────────────────┐
-│ │ │ │
-│ orders-service │ ──────────▶ │notifications-service │
-│ │ │ │
-│ - orders │ │ - fake email sender │
-│ - batching │ │ - simulated latency │
-│ - concurrency │ │ - failures │
-│ - retry │ │ │
-│ - timeout │ │ │
-│ - abort │ │ │
-└──────────────────┘ └──────────────────────┘
 
 ### `orders-service`
 
@@ -254,18 +242,19 @@ Au-delà de la syntaxe Node.js / Express, ce mini-projet met l'accent sur des pr
 ```text
 .
 ├── orders-service/
-│   ├── controllers/
-│   ├── services/
-│   ├── repositories/
-│   ├── routes/
-│   ├── middlewares/
-│   └── ...
+│   ├── src/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── middlewares/
+│   └── tests/
+│       └── http/
 │
 ├── notifications-service/
 │   ├── controllers/
 │   ├── services/
-│   ├── routes/
-│   └── ...
+│   └── routes/
 │
 └── README.md
 ```
@@ -302,21 +291,30 @@ npm install
 
 ## ▶️ Lancement
 
-Lancer `notifications-service` :
-
-```bash
-cd notifications-service
-npm run start:dev
-```
-
-Puis lancer `orders-service` dans un autre terminal :
+Lancer `orders-service` sur le port 3000:
 
 ```bash
 cd orders-service
 npm run start:dev
 ```
 
-Les ports et paramètres peuvent être adaptés via la configuration du projet.
+Lancer `notifications-service` dans un autre terminal sur le port 3001:
+
+```bash
+cd notifications-service
+npm run start:dev
+```
+
+Exécuter la route `http://localhost:3000/orders/pending/send-reminders`
+depuis `orders-service/tests/http/order.request.http` avec l'extension
+REST Client de Huachao Mao ou directement depuis un nouveau terminal powershell :
+
+```bash
+Invoke-WebRequest -Uri "http://localhost:3000/orders/pending/send-reminders" -Method GET
+```
+
+Les ports et paramètres peuvent être adaptés via la configuration du projet
+(dossier config/ de chaque microservice)
 
 ---
 
@@ -416,6 +414,7 @@ C'est autour de cette question que le projet a été conçu.
 
 Plusieurs pistes permettraient de rapprocher le projet d'une architecture de production :
 
+- worker pool
 - message broker (`RabbitMQ`, Kafka...) ;
 - idempotency ;
 - circuit breaker ;

@@ -1,5 +1,6 @@
+import config from "./config/ordersService.config.js";
 import app from "./src/app.js";
 
-app.listen(3000, () => {
-  console.log("Service Orders running on port 3000");
+app.listen(config.port, () => {
+  console.log(`Service Orders running on port ${config.port}`);
 });
