@@ -11,7 +11,7 @@ router.get("/:id", orderController.findUnique);
 
 router.post("/", orderController.create);
 
-router.patch("/:id", orderController.update);
+router.patch("/:id/status", orderController.update);
 
 router.delete("/:id", orderController.delete);
 
