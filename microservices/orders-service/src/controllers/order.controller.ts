@@ -4,9 +4,38 @@ import type { Request, Response } from "express";
 import { OrderStatus, Order, CreateOrderDto } from "../types/order.types.js";
 import { Report } from "../types/sendReminders.types.js";
 
+interface PaginationQuery {
+  status?: OrderStatus | "all";
+  page?: string;
+  limit?: string;
+}
+
 const orderController = {
-  async findAll(_req: Request, res: Response) {
-    const orders: Order[] = await orderService.findAll();
+  async findAll(req: Request<{}, {}, {}, PaginationQuery>, res: Response) {
+    const status = req.query.status ?? "all";
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 1_000);
+
+    if (page < 1 || limit < 1 || limit > 1_000) {
+      throw new AppError("Invalid pagination parameters", 400);
+    }
+
+    const allowedStatus = [
+      "all",
+      "pending",
+      "confirmed",
+      "shipped",
+      "cancelled",
+    ];
+
+    if (!allowedStatus.includes(status)) {
+      throw new AppError(
+        `Only theses status are possible: ${allowedStatus.join(", ")}`,
+        400,
+      );
+    }
+
+    const orders: Order[] = await orderService.findAll(status, page, limit);
     res.status(200).json(orders);
   },
 

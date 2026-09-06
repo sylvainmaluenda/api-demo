@@ -6,10 +6,19 @@ const apiSimulatedDelayMs: number = 1000;
 const ordersMap = new Map(orders.map((order) => [order.id, order]));
 
 const orderRepository = {
-  async findAll(): Promise<Order[]> {
+  async findAll(status: string, page: number, limit: number): Promise<Order[]> {
     await delay(apiSimulatedDelayMs);
 
-    return [...ordersMap.values()];
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+
+    if (status === "all") {
+      return [...ordersMap.values()].slice(startIndex, endIndex);
+    }
+
+    return [...ordersMap.values()]
+      .filter((order) => order.status === status)
+      .slice(startIndex, endIndex);
   },
 
   async findUnique(id: number): Promise<Order | undefined> {

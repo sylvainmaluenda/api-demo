@@ -6,8 +6,8 @@ import { CreateOrderDto, Order, OrderStatus } from "../types/order.types.js";
 import { Report } from "../types/sendReminders.types.js";
 
 const orderService = {
-  async findAll(): Promise<Order[]> {
-    const orders: Order[] = await orderRepository.findAll();
+  async findAll(status: string, page: number, limit: number): Promise<Order[]> {
+    const orders: Order[] = await orderRepository.findAll(status, page, limit);
     return orders;
   },
 
