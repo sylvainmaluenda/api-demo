@@ -18,3 +18,7 @@ export interface CreateOrderDto {
   userId: number;
   products: Products[];
 }
+
+export interface UpdateOrderDto {
+  status: OrderStatus;
+}

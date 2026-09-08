@@ -1,18 +1,31 @@
 import orderService from "../services/order.service.js";
 import AppError from "../errors/AppError.js";
 import type { Request, Response } from "express";
-import { OrderStatus, Order, CreateOrderDto } from "../types/order.types.js";
-import { Report } from "../types/sendReminders.types.js";
+import {
+  OrderStatus,
+  Order,
+  CreateOrderDto,
+  UpdateOrderDto,
+} from "../types/order.types.js";
 
 interface PaginationQuery {
-  status?: OrderStatus | "all";
+  status?: OrderStatus;
   page?: string;
   limit?: string;
 }
 
+interface CountQuery {
+  status?: OrderStatus;
+}
+
+const allowedStatus = ["pending", "confirmed", "shipped", "cancelled"] as const;
+
 const orderController = {
-  async findAll(req: Request<{}, {}, {}, PaginationQuery>, res: Response) {
-    const status = req.query.status ?? "all";
+  async findAll(
+    req: Request<{}, {}, {}, PaginationQuery>,
+    res: Response,
+  ): Promise<void> {
+    const status = req.query.status ?? undefined;
     const page = Number(req.query.page ?? 1);
     const limit = Number(req.query.limit ?? 1_000);
 
@@ -20,15 +33,7 @@ const orderController = {
       throw new AppError("Invalid pagination parameters", 400);
     }
 
-    const allowedStatus = [
-      "all",
-      "pending",
-      "confirmed",
-      "shipped",
-      "cancelled",
-    ];
-
-    if (!allowedStatus.includes(status)) {
+    if (status && !allowedStatus.includes(status)) {
       throw new AppError(
         `Only theses status are possible: ${allowedStatus.join(", ")}`,
         400,
@@ -39,7 +44,7 @@ const orderController = {
     res.status(200).json(orders);
   },
 
-  async findUnique(req: Request, res: Response) {
+  async findUnique(req: Request, res: Response): Promise<void> {
     const id: number = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       throw new AppError("Id should be a positive integer", 400);
@@ -49,16 +54,13 @@ const orderController = {
     res.status(200).json(order);
   },
 
-  async create(req: Request, res: Response) {
-    // Business rules :
-    // The initial status must be "pending"
-    // Product prices must be get from repository
-    // Total amount must be calculated from backoffice
-
+  async create(
+    req: Request<{}, {}, CreateOrderDto>,
+    res: Response,
+  ): Promise<void> {
     const allowedOrderProps = ["userId", "products"];
-    const createOrderDto: CreateOrderDto = req.body;
 
-    const isUnauthorizedProp = Object.keys(createOrderDto).some(
+    const isUnauthorizedProp = Object.keys(req.body).some(
       (prop) => !allowedOrderProps.includes(prop),
     );
 
@@ -69,17 +71,19 @@ const orderController = {
       );
     }
 
-    const order: Order | undefined = await orderService.create(createOrderDto);
+    const order: Order | undefined = await orderService.create(req.body);
     res.status(201).json(order);
   },
 
-  async update(req: Request, res: Response) {
+  async update(
+    req: Request<{ id: string }, {}, UpdateOrderDto>,
+    res: Response,
+  ): Promise<void> {
     const id: number = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) {
       throw new AppError("Id should be a positive integer", 400);
     }
 
-    const allowedStatus = ["pending", "confirmed", "shipped", "cancelled"];
     const status: OrderStatus = req.body.status;
 
     if (!status) {
@@ -97,20 +101,33 @@ const orderController = {
     res.status(200).json(order);
   },
 
-  delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<void> {
     const id: number = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
       throw new AppError("Id should be a positive integer", 400);
     }
 
-    orderService.delete(id);
-    res.sendStatus(204);
+    if (await orderService.delete(id)) {
+      res.sendStatus(204);
+    }
   },
 
-  async sendReminders(_req: Request, res: Response) {
-    const datas: Report = await orderService.sendReminders();
-    res.status(200).json(datas);
+  async count(
+    req: Request<{}, {}, {}, CountQuery>,
+    res: Response,
+  ): Promise<void> {
+    const status = req.query.status ?? undefined;
+
+    if (status && !allowedStatus.includes(status)) {
+      throw new AppError(
+        `Only theses status are possible: ${allowedStatus.join(", ")}`,
+        400,
+      );
+    }
+
+    const count: number = await orderService.count(status);
+    res.status(200).json({ count: count });
   },
 };
 

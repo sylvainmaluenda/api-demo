@@ -1,4 +1,4 @@
-import config from "./config/ordersService.config.js";
+import config from "./src/config/ordersService.config.js";
 import app from "./src/app.js";
 
 app.listen(config.port, () => {

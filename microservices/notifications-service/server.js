@@ -1,4 +1,4 @@
-import config from "./config/notificationsService.config.js";
+import config from "./src/config/notificationsService.config.js";
 import app from "./src/app.js";
 
 app.listen(config.port, () => {

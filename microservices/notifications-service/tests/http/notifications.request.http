@@ -1,0 +1,3 @@
+### sendReminders
+
+GET http://localhost:3001/notifications/send-reminders

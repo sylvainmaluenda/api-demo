@@ -1,4 +1,4 @@
-import config from "../../config/ordersService.config.js";
+import config from "../config/ordersService.config.js";
 import { OrderStatus, Products, Order } from "../types/order.types.js";
 
 const orders: Order[] = [];

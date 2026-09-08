@@ -1,18 +1,23 @@
 import orders from "./orders.mock.js";
 import { OrderStatus, Order } from "../types/order.types.js";
+import config from "../config/ordersService.config.js";
 
-const apiSimulatedDelayMs: number = 1000;
+const { apiSimulatedLatencyMs } = config;
 
 const ordersMap = new Map(orders.map((order) => [order.id, order]));
 
 const orderRepository = {
-  async findAll(status: string, page: number, limit: number): Promise<Order[]> {
-    await delay(apiSimulatedDelayMs);
+  async findAll(
+    status: string | undefined,
+    page: number,
+    limit: number,
+  ): Promise<Order[]> {
+    await delay(apiSimulatedLatencyMs);
 
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
 
-    if (status === "all") {
+    if (!status) {
       return [...ordersMap.values()].slice(startIndex, endIndex);
     }
 
@@ -22,21 +27,13 @@ const orderRepository = {
   },
 
   async findUnique(id: number): Promise<Order | undefined> {
-    await delay(apiSimulatedDelayMs);
+    await delay(apiSimulatedLatencyMs);
 
     return ordersMap.get(id);
   },
 
-  async findPending(): Promise<Order[]> {
-    await delay(apiSimulatedDelayMs);
-
-    return [...ordersMap.values()].filter(
-      (order) => order.status === "pending",
-    );
-  },
-
   async create(order: Omit<Order, "id">): Promise<Order | undefined> {
-    await delay(apiSimulatedDelayMs);
+    await delay(apiSimulatedLatencyMs);
 
     const maxId: number = [...ordersMap.values()].reduce(
       (max, order) => Math.max(order.id, max),
@@ -52,7 +49,7 @@ const orderRepository = {
   },
 
   async update(id: number, status: OrderStatus): Promise<Order | undefined> {
-    await delay(apiSimulatedDelayMs);
+    await delay(apiSimulatedLatencyMs);
 
     const order = ordersMap.get(id)!;
 
@@ -62,10 +59,22 @@ const orderRepository = {
     return ordersMap.get(id);
   },
 
-  async delete(id: number): Promise<void> {
-    await delay(apiSimulatedDelayMs);
+  async delete(id: number): Promise<boolean> {
+    await delay(apiSimulatedLatencyMs);
 
     ordersMap.delete(id);
+    return ordersMap.has(id);
+  },
+
+  async count(status: string | undefined): Promise<number> {
+    await delay(apiSimulatedLatencyMs);
+
+    if (!status) {
+      return ordersMap.size;
+    }
+
+    return [...ordersMap.values()].filter((order) => order.status === status)
+      .length;
   },
 };
 

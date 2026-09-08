@@ -1,12 +1,13 @@
-import config from "../../config/ordersService.config.js";
 import orderRepository from "../repositories/order.repository.js";
-import orderBatchService from "./orderBatch.service.js";
 import AppError from "../errors/AppError.js";
 import { CreateOrderDto, Order, OrderStatus } from "../types/order.types.js";
-import { Report } from "../types/sendReminders.types.js";
 
 const orderService = {
-  async findAll(status: string, page: number, limit: number): Promise<Order[]> {
+  async findAll(
+    status: string | undefined,
+    page: number,
+    limit: number,
+  ): Promise<Order[]> {
     const orders: Order[] = await orderRepository.findAll(status, page, limit);
     return orders;
   },
@@ -44,38 +45,17 @@ const orderService = {
     return await orderRepository.update(id, status);
   },
 
-  async delete(id: number): Promise<void> {
+  async delete(id: number): Promise<boolean> {
     const order: Order | undefined = await orderRepository.findUnique(id);
     if (!order) {
       throw new AppError(`Order #${id} not found`, 404);
     }
 
-    await orderRepository.delete(id);
+    return await orderRepository.delete(id);
   },
 
-  async sendReminders(): Promise<Report> {
-    const ordersPending: Order[] = await orderRepository.findPending();
-
-    if (!ordersPending) {
-      throw new AppError("No order exists with a pending status", 404);
-    }
-
-    const signal: AbortSignal = AbortSignal.timeout(config.abortTimeOutMs);
-
-    const timeStamp: number = Date.now();
-
-    // orderBatchService : manage error 413 : Payoad Too Large & server timeout
-    const rawResults = await orderBatchService.processOrders(
-      ordersPending,
-      signal,
-    );
-
-    return orderBatchService.getReport(
-      ordersPending.length,
-      rawResults,
-      timeStamp,
-      signal,
-    );
+  async count(status: string | undefined): Promise<number> {
+    return await orderRepository.count(status);
   },
 };
 

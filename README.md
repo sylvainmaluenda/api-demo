@@ -25,28 +25,32 @@ Le projet est volontairement composé de deux microservices :
 
 ### `orders-service`
 
-Responsable de l'orchestration du traitement :
+API Rest classique responsable des commandes :
 
-- récupération des commandes à traiter ;
-- découpage en batches ;
-- limitation de la concurrence ;
-- appel HTTP vers `notifications-service` ;
-- gestion des erreurs ;
-- retry ;
-- backoff ;
-- timeout configurable ;
-- annulation via `AbortController` ;
-- agrégation des résultats.
+- requêtes CRUD complètes avec params & queries
+- structure de commande claire
+- gestion des routes 404
+- gestion des erreurs via middleware global
+- commandes aléatoires via mock configurable
+- repository mémoire via Map.
 
 ### `notifications-service`
 
-Responsable de l'envoi des notifications :
+Responsable de l'orchestration du traitement :
 
-- réception d'une commande ;
-- simulation d'un envoi d'email ;
-- latence configurable ;
-- simulation d'échecs ;
-- prise en compte de l'annulation d'une requête HTTP.
+- simulation d'envoi d'emails de relance ;
+- récupération des commandes concernées (pending status) ;
+- découpage en batches ;
+- limitation de la concurrence ;
+- appel HTTP vers `orders-service` ;
+- gestion des erreurs 413: Payload too long ;
+- retry ;
+- backoff ;
+- timeout et latence configurables ;
+- annulation via `AbortController` ;
+- agrégation des résultats ;
+
+- simulation d'échecs.
 
 L'envoi d'email est volontairement **simulé** afin de se concentrer sur les problématiques de communication inter-services et de traitement concurrent.
 
@@ -56,31 +60,32 @@ L'envoi d'email est volontairement **simulé** afin de se concentrer sur les pro
 
 Lorsqu'un traitement des commandes est lancé :
 
-```
-Orders
-  │
-  ▼
-Load pending orders
-  │
-  ▼
-Split into batches
-  │
-  ▼
+Notifications
+│
+▼
+Get orders from orders-service while existing (limit = `batchOrderSize`)
+│
+▼
+Split orders into SMPT batches (max concurrency = `batchSmtpSize`)
+│
+▼
 Process batch
-  │
-  ├── Order 1 ──▶ Notification ──▶ Success
-  ├── Order 2 ──▶ Notification ──▶ Retry ──▶ Success
-  ├── Order 3 ──▶ Notification ──▶ Failure
-  └── ...
-  │
-  ▼
+│
+├── Order 1 ──▶ Send mail ──▶ Success
+├── Order 2 ──▶ Send mail ──▶ Failure
+└── ...
+│
+▼
+Retry batch while failures till (attempts limit = `maxAttempts`)
+│
+▼
 Aggregate results
-  │
-  ▼
-Next batch
-```
-
-Le système ne lance pas toutes les requêtes simultanément. La **taille du batch** et le **niveau de concurrence** sont deux paramètres distincts permettant de contrôler la pression exercée sur le service distant.
+│
+▼
+Next SMTP batch
+│
+▼
+Next Order batch
 
 ---
 
@@ -88,14 +93,10 @@ Le système ne lance pas toutes les requêtes simultanément. La **taille du bat
 
 ### 1. Batch processing
 
-Le traitement d'un grand volume de commandes est découpé en lots.
+Le traitement d'un grand volume de commandes est découpé en lots (batches) afin de contrôler la taille du payload envoyé par le service orders.
 
-Cela permet notamment de :
-
-- limiter la quantité de travail simultanément en mémoire ;
-- contrôler le nombre d'appels réseau ;
-- obtenir des résultats intermédiaires ;
-- éviter qu'une seule opération massive ne monopolise le système.
+Paramètre : `batchOrderSize`
+Responsabilité : **HTTP / transport**
 
 La taille des batches est configurable afin de pouvoir observer son impact sur les performances.
 
@@ -103,20 +104,18 @@ La taille des batches est configurable afin de pouvoir observer son impact sur l
 
 ### 2. Concurrency control
 
-Un batch important ne signifie pas que toutes les commandes doivent être traitées simultanément.
+Afin de na pas saturer le service SMTP distant (simulé), le projet distingue :
+batchOrderSize → combien de commandes composent un lot
+batchSmtpSize → combien de requêtes peuvent être actives simultanément (contrôle de concurrence)
 
-Le projet distingue :
-
-batchSize → combien de commandes composent un lot
-maxConcurrency → combien de requêtes peuvent être actives simultanément
-
-Cette distinction est importante pour éviter de transformer une optimisation apparente en **saturation du service distant**.
+Paramètre : `batchSmtpSize`
+Responsabilité : **Traitement / SMTP**
 
 ---
 
 ### 3. Timeout configurable
 
-Chaque appel vers `notifications-service` peut être soumis à un timeout.
+Chaque appel vers le serveur SMTP distant peut être soumis à un timeout.
 
 En cas de dépassement :
 
@@ -140,9 +139,9 @@ Le timeout est configurable afin de pouvoir adapter le comportement du système 
 
 ### 4. AbortController
 
-L'utilisation de `AbortController` permet d'annuler réellement un `fetch` en cours.
+L'utilisation de `AbortController` permet à l'utilisateur d'annuler un `fetch` en cours.
 
-Le signal est propagé jusqu'à l'appel HTTP. Le projet exploite ce mécanisme pour gérer les interruptions et éviter de continuer inutilement des traitements qui ne doivent plus être poursuivis.
+Le signal est propagé jusqu'à l'appel du service SMTP. Le projet exploite ce mécanisme pour gérer les interruptions et éviter de continuer inutilement des traitements qui ne doivent plus être poursuivis.
 
 ---
 
@@ -183,14 +182,13 @@ Le nombre maximal de tentatives et la stratégie de backoff sont configurables.
 
 Un point important du projet est la gestion d'une interruption pendant un traitement.
 
-Si une partie des commandes a déjà été traitée avant l'annulation, ces résultats ne sont pas simplement perdus.
+Si une partie des commandes a déjà été traitée avant l'annulation, ces résultats ne sont pas perdus.
 
 Le traitement distingue notamment :
 
 - commandes traitées avec succès ;
 - commandes ayant échoué ;
-- commandes interrompues ;
-- commandes qui n'ont pas encore été traitées.
+- commandes restantes après abort.
 
 Cette approche permet d'éviter de considérer l'ensemble du batch comme un échec lorsqu'une interruption survient en cours de traitement.
 
@@ -211,7 +209,7 @@ Le projet peut ainsi être utilisé pour expérimenter l'effet de paramètres te
 
 ```js
 {
-  (batchSize, maxConcurrency, maxAttempts, timeout, backoff);
+  (batchOrderSize, batchSmtpSize, maxAttempts, timeout, backoff);
 }
 ```
 
@@ -241,20 +239,16 @@ Au-delà de la syntaxe Node.js / Express, ce mini-projet met l'accent sur des pr
 
 ```text
 .
-├── orders-service/
+├── orders-service/ et notifications-service/
 │   ├── src/
+│   │   ├── config/
 │   │   ├── controllers/
 │   │   ├── services/
 │   │   ├── repositories/
 │   │   ├── routes/
-│   │   ├── middlewares/
+│   │   └── middlewares/
 │   └── tests/
 │       └── http/
-│
-├── notifications-service/
-│   ├── controllers/
-│   ├── services/
-│   └── routes/
 │
 └── README.md
 ```
@@ -305,12 +299,12 @@ cd notifications-service
 npm run start:dev
 ```
 
-Exécuter la route `http://localhost:3000/orders/pending/send-reminders`
-depuis `orders-service/tests/http/order.request.http` avec l'extension
+Exécuter la route `http://localhost:3001/notifications/send-reminders`
+depuis `notifications-service/tests/http/notification.request.http` avec l'extension
 REST Client de Huachao Mao ou directement depuis un nouveau terminal powershell :
 
 ```bash
-Invoke-WebRequest -Uri "http://localhost:3000/orders/pending/send-reminders" -Method GET
+Invoke-WebRequest -Uri "http://localhost:3001/notifications/send-reminders" -Method GET
 ```
 
 Les ports et paramètres peuvent être adaptés via la configuration du projet
@@ -326,18 +320,7 @@ Permet d'observer le fonctionnement nominal du traitement.
 
 ### Batch important
 
-Permet d'observer la différence entre :
-
-```text
-batchSize
-```
-
-et :
-
-```text
-maxConcurrency
-```
-
+Permet d'observer la différence entre `batchOrderSize` et `batchSmtpSize`
 et d'identifier le point à partir duquel augmenter la taille du batch n'apporte plus de gain.
 
 ### Latence élevée
@@ -370,11 +353,11 @@ Déclencher une annulation alors que plusieurs commandes sont en cours permet de
 Le découpage permet de rendre explicite la communication inter-services :
 
 ```text
-orders
+notifications
   │
   │ HTTP
   ▼
-notifications
+orders
 ```
 
 `orders-service` ne connaît pas l'implémentation de l'envoi d'email. Il dépend uniquement du contrat exposé par `notifications-service`.
@@ -414,17 +397,17 @@ C'est autour de cette question que le projet a été conçu.
 
 Plusieurs pistes permettraient de rapprocher le projet d'une architecture de production :
 
-- worker pool
-- message broker (`RabbitMQ`, Kafka...) ;
-- idempotency ;
-- circuit breaker ;
-- dead-letter queue ;
-- observabilité avec logs structurés ;
-- métriques et tracing ;
-- persistence des jobs ;
-- reprise après crash ;
-- rate limiting ;
-- tests de charge automatisés.
+- worker pool pour optimiser la gestion de la concurrence ;
+- persistance des jobs et de leur état ;
+- reprise des jobs après crash ;
+- rate limiting des appels SMTP ;
+- tests de charge automatisés ;
+- tests unitaires et d'intégration avec Jest et SuperTest ;
+- mise en place de métriques et de tracing ;
+- durcissement de la politique CORS ;
+- gestion des tokens et de l'authentification ;
+- contrôle fin des DTO avec Zod ;
+- gestion sécurisée des variables d'environnement.
 
 Ces éléments ne sont volontairement pas tous implémentés : le projet se concentre sur le **batch processing, la concurrence, les retries, les timeouts et l'annulation distribuée**.
 

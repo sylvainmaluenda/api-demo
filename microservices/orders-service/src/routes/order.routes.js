@@ -5,7 +5,7 @@ import orderController from "../controllers/order.controller.js";
 
 router.get("/", orderController.findAll);
 
-router.get("/pending/send-reminders", orderController.sendReminders);
+router.get("/count", orderController.count);
 
 router.get("/:id", orderController.findUnique);
 

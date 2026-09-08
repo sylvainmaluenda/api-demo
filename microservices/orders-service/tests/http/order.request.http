@@ -31,5 +31,8 @@ Content-Type: application/json
     "status" : "cancelled"
 }
 
-### sendReminders
-GET http://localhost:3000/orders/pending/send-reminders
+### count all orders
+GET http://localhost:3000/orders/count
+
+### count pendind orders
+GET http://localhost:3000/orders/count?status=pending
