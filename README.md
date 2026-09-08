@@ -1,10 +1,6 @@
 # Orders Batch Processing — Node.js Microservices
 
-> Mini-projet **Node.js orienté backend / architecture distribuée**, conçu autour d'un problème concret : traiter la relance des clients d'un grand volume de commandes ayant un status "en attente de paiement" de manière contrôlée, résiliente et observable, tout en déclenchant un traitement asynchrone côté notifications.
-
-## 🎯 Pourquoi ce projet ?
-
-Ce projet met en pratique plusieurs problématiques que l'on rencontre rapidement sur un backend soumis à de la charge :
+> Mini-projet **Node.js orienté backend / architecture distribuée**, conçu autour d'un problème concret : traiter la relance des clients d'un grand volume de commandes ayant un status "en attente de paiement" de manière contrôlée, résiliente et observable. Ce projet met l'accent sur les problématiques de **performances** que l'on rencontre rapidement sur un backend soumis à de la charge :
 
 - traiter **un grand nombre de commandes** sans saturer le système ;
 - contrôler la **concurrence des appels HTTP** vers un service distant ;
@@ -15,7 +11,11 @@ Ce projet met en pratique plusieurs problématiques que l'on rencontre rapidemen
 - conserver les résultats déjà obtenus lorsqu'un traitement est interrompu ;
 - séparer les responsabilités au sein de **deux microservices indépendants**.
 
-L'objectif n'était donc pas simplement de construire une API CRUD, mais de travailler sur les problématiques de **fiabilité, performance et résilience d'un traitement distribué**.
+---
+
+## 🧩 Compétences mises en œuvre
+
+**Node.js · Express · JavaScript · REST · HTTP · Fetch API · Async/Await · Promises · AbortController · Concurrency · Batch Processing · Retry · Backoff · Timeout · Error Handling · Microservices**
 
 ---
 
@@ -28,10 +28,10 @@ Le projet est volontairement composé de deux microservices :
 API Rest classique responsable des commandes :
 
 - requêtes CRUD complètes avec params & queries
-- structure de commande claire
+- validation des DTO
 - gestion des routes 404
 - gestion des erreurs via middleware global
-- commandes aléatoires via mock configurable
+- création de commandes via mock configurable
 - repository mémoire via Map.
 
 ### `notifications-service`
@@ -217,24 +217,6 @@ et observer leur impact sur le comportement global.
 
 ---
 
-## 📊 Ce que ce projet cherche à démontrer
-
-Au-delà de la syntaxe Node.js / Express, ce mini-projet met l'accent sur des problématiques backend concrètes :
-
-| Problématique                  | Réponse apportée               |
-| ------------------------------ | ------------------------------ |
-| Gros volume de données         | Batch processing               |
-| Trop de requêtes simultanées   | Concurrency control            |
-| Service distant lent           | Timeout                        |
-| Annulation d'un traitement     | `AbortController`              |
-| Erreurs transitoires           | Retry                          |
-| Retries trop agressifs         | Backoff                        |
-| Traitement interrompu          | Gestion des résultats partiels |
-| Couplage entre responsabilités | Microservices                  |
-| Service externe indisponible   | Gestion explicite des erreurs  |
-
----
-
 ## 🗂️ Structure du projet
 
 ```text
@@ -312,87 +294,6 @@ Les ports et paramètres peuvent être adaptés via la configuration du projet
 
 ---
 
-## 🔬 Scénarios intéressants à tester
-
-### Petit batch / faible concurrence
-
-Permet d'observer le fonctionnement nominal du traitement.
-
-### Batch important
-
-Permet d'observer la différence entre `batchOrderSize` et `batchSmtpSize`
-et d'identifier le point à partir duquel augmenter la taille du batch n'apporte plus de gain.
-
-### Latence élevée
-
-Augmenter la latence simulée de `notifications-service` permet de tester les timeouts.
-
-### Taux d'échec élevé
-
-Permet d'observer :
-
-- les retries ;
-- le backoff ;
-- les échecs définitifs.
-
-### Annulation pendant un batch
-
-Déclencher une annulation alors que plusieurs commandes sont en cours permet de vérifier :
-
-- la propagation du signal ;
-- l'arrêt des requêtes ;
-- la conservation des résultats déjà obtenus ;
-- la distinction entre commandes traitées et commandes interrompues.
-
----
-
-## 💡 Quelques choix de conception
-
-### Pourquoi deux microservices ?
-
-Le découpage permet de rendre explicite la communication inter-services :
-
-```text
-notifications
-  │
-  │ HTTP
-  ▼
-orders
-```
-
-`orders-service` ne connaît pas l'implémentation de l'envoi d'email. Il dépend uniquement du contrat exposé par `notifications-service`.
-
-### Pourquoi simuler l'envoi d'email ?
-
-L'objectif du projet est la gestion du **traitement distribué**, et non l'intégration d'un fournisseur SMTP ou transactionnel.
-
-La simulation permet de reproduire :
-
-- latence ;
-- erreurs ;
-- concurrence ;
-- annulation ;
-
-sans ajouter de dépendance externe.
-
----
-
-## 🧩 Compétences mises en œuvre
-
-**Node.js · Express · JavaScript · REST · HTTP · Fetch API · Async/Await · Promises · AbortController · Concurrency · Batch Processing · Retry · Backoff · Timeout · Error Handling · Microservices**
-
----
-
-## 🎓 Ce que j'ai cherché à travailler
-
-Ce projet a été réalisé comme un exercice orienté **backend senior**, avec une attention particulière portée non seulement au fonctionnement nominal, mais également aux comportements du système sous contrainte :
-
-> **Que se passe-t-il lorsque le volume augmente, que le service distant ralentit, que des requêtes échouent ou qu'un traitement est interrompu en cours d'exécution ?**
-
-C'est autour de cette question que le projet a été conçu.
-
----
-
 ## 📌 Évolutions possibles
 
 Plusieurs pistes permettraient de rapprocher le projet d'une architecture de production :
@@ -410,11 +311,3 @@ Plusieurs pistes permettraient de rapprocher le projet d'une architecture de pro
 - gestion sécurisée des variables d'environnement.
 
 Ces éléments ne sont volontairement pas tous implémentés : le projet se concentre sur le **batch processing, la concurrence, les retries, les timeouts et l'annulation distribuée**.
-
----
-
-## 👨‍💻 À propos
-
-Ce projet fait partie de mes travaux personnels autour du développement **backend Node.js**, avec un intérêt particulier pour les problématiques de **conception, performance, résilience et architecture distribuée**.
-
-Il est présenté comme un **mini-projet technique** permettant de rendre visibles les choix d'architecture et les problématiques rencontrées plutôt que comme une simple démonstration d'API CRUD.
