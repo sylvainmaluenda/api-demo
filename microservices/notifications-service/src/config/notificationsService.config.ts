@@ -3,7 +3,7 @@ const config = {
 
   abortTimeOutMs: 20_000,
   batchOrderSize: 1_000,
-  batchSmtpSize: 20,
+  batchSmtpSize: 22,
 
   maxAttempts: 3,
   backoff: {

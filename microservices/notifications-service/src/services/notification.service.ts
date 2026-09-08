@@ -29,10 +29,11 @@ const notificationService = {
 
     while (true) {
       if (signal.aborted) {
+        console.log("\nProcess aborted due to timeout");
         break;
       }
 
-      console.log(`Loading pending orders page #${page}...`);
+      console.log(`\nLoading pending orders page #${page}...`);
 
       const orders = await this.getPendingOrders(page, limit, signal);
 
@@ -88,8 +89,6 @@ const notificationService = {
     orders: Order[],
     signal: AbortSignal,
   ): Promise<AttemptResult[]> {
-    console.log(`Process started for ${orders.length} orders...`);
-
     const ordersMap: Map<number, Order> = new Map(
       orders.map((order) => [order.id, order]),
     );
@@ -112,8 +111,6 @@ const notificationService = {
         break;
       }
 
-      console.log(`Attempt #${attemptId} :`);
-
       results.push({ attemptId, batches: [] });
 
       // Backoff linear strategy
@@ -126,14 +123,13 @@ const notificationService = {
       // Batch process
       let batches: OrderBatch[] = [];
       let batchId = 1;
-      const batchesCount = Math.ceil(ordersToProcess.length / batchSmtpSize);
+
+      let processedOrders = 0;
 
       for (let i = 0; i < ordersToProcess.length; i += batchSmtpSize) {
         if (signal.aborted) {
           break;
         }
-
-        console.log(`Start SMTP batch ${batchId}/${batchesCount} treatment...`);
 
         batches.push({
           batchId,
@@ -149,10 +145,18 @@ const notificationService = {
           batchOrders.map((order) => this.processOrder(order, signal)),
         );
 
+        processedOrders += results.length;
+        const percentage = (processedOrders / ordersToProcess.length) * 100;
+        process.stdout.write(
+          `\rAttempt #${attemptId}: ${percentage.toFixed(1)}% (${processedOrders}/${ordersToProcess.length})`,
+        );
+
         batches[batchId - 1].results.push(...results);
 
         batchId++;
       }
+
+      process.stdout.write("\n");
 
       results[attemptId - 1].batches.push(...batches);
 
@@ -176,7 +180,8 @@ const notificationService = {
       }
     }
 
-    console.dir(results, { depth: null });
+    // console.dir(results, { depth: null });
+
     return results;
   },
 
